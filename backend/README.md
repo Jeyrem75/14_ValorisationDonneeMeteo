@@ -1,5 +1,7 @@
 # Backend - API Meteo
 
+[![CI](https://github.com/Jeyrem75/14_ValorisationDonneeMeteo/actions/workflows/ci.yml/badge.svg)](https://github.com/Jeyrem75/14_ValorisationDonneeMeteo/actions/workflows/ci.yml)
+
 API REST Django/DRF pour les donnees meteorologiques InfoClimat.
 
 ## Prerequis
