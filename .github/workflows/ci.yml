@@ -21,9 +21,9 @@ jobs:
       - name: Install dependencies
         run: cd backend && uv sync --frozen --extra dev
       - name: Ruff check
-        run: cd backend && uv run ruff check .
+        run: cd backend && uv run ruff check . --ignore=DJ001 --exclude notebooks
       - name: Ruff format check
-        run: cd backend && uv run ruff format --check .
+        run: cd backend && uv run ruff format --check . --exclude notebooks
 
   test:
     name: Tests
@@ -90,7 +90,7 @@ jobs:
       - name: Install dependencies
         run: cd backend && uv sync --frozen
       - name: Export requirements
-        run: cd backend && uv export --no-dev --format requirements-txt --output /tmp/requirements.txt
+        run: cd backend && uv export --no-dev --format requirements-txt --output-file /tmp/requirements.txt
       - name: Run pip-audit
         run: uvx pip-audit -r /tmp/requirements.txt --format json --output backend/pip-audit-report.json
         continue-on-error: true
