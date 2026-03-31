@@ -10,84 +10,101 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------------
-      # 1. Checkout repo
-      # -------------------------
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # -------------------------
-      # 2. Setup Python
-      # -------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      # -------------------------
-      # 3. Install dependencies
-      # -------------------------
+      # Install backend dependencies
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r backend/requirements.txt
           pip install pytest flake8 bandit
 
-      # -------------------------
-      # 4. Run tests
-      # -------------------------
-      - name: Run tests
+      - name: Run backend tests
         run: |
-          pytest --junitxml=report.xml
+          pytest backend/weather/tests --junitxml=backend-report.xml
 
-      # -------------------------
-      # 5. Linter
-      # -------------------------
-      - name: Run linter
+      - name: Backend linter
         run: |
-          flake8 . --max-line-length=120
+          flake8 backend --max-line-length=120
 
-      # -------------------------
-      # 6. Security scan (code)
-      # -------------------------
-      - name: Run Bandit security scan
+      - name: Backend Bandit scan
         run: |
-          bandit -r . -f json -o bandit-report.json
+          bandit -r backend -f json -o backend-bandit.json
 
-      # -------------------------
-      # 7. Build Docker image
-      # -------------------------
-      - name: Build Docker image
+      - name: Build Backend Docker image
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/meteo-app:latest .
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/meteo-back:latest ./backend
 
-      # -------------------------
-      # 8. Scan Docker image (Trivy)
-      # -------------------------
-      - name: Run Trivy scan
-        uses: aquasecurity/trivy-action@v1
+      - name: Scan Backend image (Trivy)
+        uses: aquasecurity/trivy-action@0.33.1
         with:
-          image-ref: ${{ secrets.DOCKER_USERNAME }}/meteo-app:latest
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/meteo-back:latest
           format: json
-          output: trivy-report.json
+          output: backend-trivy.json
 
-      # -------------------------
-      # 9. Upload reports (artefacts)
-      # -------------------------
-      - name: Upload reports
+      - name: Upload backend reports
         uses: actions/upload-artifact@v4
         with:
-          name: reports
+          name: backend-reports
           path: |
-            report.xml
-            bandit-report.json
-            trivy-report.json
+            backend-report.xml
+            backend-bandit.json
+            backend-trivy.json
 
-  push-docker:
+  ci-frontend:
+    runs-on: ubuntu-latest
     needs: ci-backend
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20"
+
+      - name: Install frontend dependencies
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Frontend tests
+        run: |
+          cd frontend
+          npm test
+
+      - name: Frontend linter
+        run: |
+          cd frontend
+          npm run lint
+
+      - name: Build Frontend Docker image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/meteo-front:latest ./frontend
+
+      - name: Scan Frontend image (Trivy)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/meteo-front:latest
+          format: json
+          output: frontend-trivy.json
+
+      - name: Upload frontend reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-reports
+          path: frontend-trivy.json
+
+  push-images:
+    needs: [ci-backend, ci-frontend]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -98,7 +115,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build & Push Docker image
+      - name: Push images
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/meteo-app:latest .
-          docker push ${{ secrets.DOCKER_USERNAME }}/meteo-app:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/meteo-back:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/meteo-front:latest
