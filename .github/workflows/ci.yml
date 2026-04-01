@@ -10,29 +10,10 @@ jobs:
     name: Backend CI
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: meteodb
-          POSTGRES_USER: infoclimat
-          POSTGRES_PASSWORD: infoclimat2026
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
     env:
-      DB_NAME: meteodb
-      DB_USER: infoclimat
-      DB_PASSWORD: infoclimat2026
-      DB_HOST: localhost
-      DB_PORT: 5432
       SECRET_KEY: ci-secret-key-not-for-production
       DEBUG: "True"
+      DB_HOST: localhost
 
     steps:
       - name: Checkout
@@ -49,10 +30,6 @@ jobs:
       - name: Install backend dependencies
         working-directory: backend
         run: uv sync --extra dev
-
-      - name: Run database migrations
-        working-directory: backend
-        run: uv run python manage.py migrate
 
       - name: Run unit tests
         working-directory: backend
