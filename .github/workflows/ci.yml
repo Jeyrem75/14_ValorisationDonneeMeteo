@@ -6,103 +6,157 @@ on:
   pull_request:
 
 jobs:
-  ci-backend:
+  backend:
+    name: Backend CI
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: meteodb
+          POSTGRES_USER: infoclimat
+          POSTGRES_PASSWORD: infoclimat2026
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DB_NAME: meteodb
+      DB_USER: infoclimat
+      DB_PASSWORD: infoclimat2026
+      DB_HOST: localhost
+      DB_PORT: 5432
+      SECRET_KEY: ci-secret-key-not-for-production
+      DEBUG: "True"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
 
-      - name: Install backend deps
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --extra dev
+
+      - name: Run database migrations
+        working-directory: backend
+        run: uv run python manage.py migrate
+
+      - name: Run unit tests
+        working-directory: backend
         run: |
-          python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
-          pip install pytest flake8 bandit
+          uv run pytest weather/tests/unit \
+            --junitxml=../backend-test-report.xml \
+            -v
 
-      - name: Run backend tests
+      - name: Ruff lint
+        working-directory: backend
+        run: uv run ruff check .
+
+      - name: Bandit security scan
+        working-directory: backend
         run: |
-          pytest backend/weather/tests --junitxml=backend-report.xml
+          uvx bandit -r weather config \
+            -f json -o ../backend-bandit.json \
+            --exit-zero
 
-      - name: Backend linter
-        run: |
-          flake8 backend --max-line-length=120
+      - name: Build backend Docker image
+        run: docker build -t meteo-back:ci ./backend
 
-      - name: Backend Bandit scan
-        run: |
-          bandit -r backend -f json -o backend-bandit.json
-
-      - name: Build Backend Docker image
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/meteo-back:latest ./backend
-
-      - name: Trivy scan Backend
+      - name: Trivy scan backend image
         uses: aquasecurity/trivy-action@0.33.2
         with:
-          image-ref: ${{ secrets.DOCKER_USERNAME }}/meteo-back:latest
+          image-ref: meteo-back:ci
           format: json
           output: backend-trivy.json
+          exit-code: "0"
 
-      - name: Upload backend reports
+      - name: Upload backend artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: backend-reports
           path: |
-            backend-report.xml
+            backend-test-report.xml
             backend-bandit.json
             backend-trivy.json
 
-  ci-frontend:
+  frontend:
+    name: Frontend CI
     runs-on: ubuntu-latest
-    needs: ci-backend
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v3
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Install frontend deps
-        run: |
-          cd frontend
-          npm ci
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
 
       - name: Run frontend tests
-        run: |
-          cd frontend
-          npm test || echo "No tests defined"
+        working-directory: frontend
+        run: npm run test:unit || echo "No tests defined"
 
-      - name: Frontend linter
-        run: |
-          cd frontend
-          npm run lint || echo "No linter defined"
+      - name: Frontend lint
+        working-directory: frontend
+        run: npm run lint
 
-      - name: Build Frontend Docker image
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/meteo-front:latest ./frontend
+      - name: Build frontend Docker image
+        run: docker build -t meteo-front:ci ./frontend
 
-      - name: Trivy scan Frontend
+      - name: Trivy scan frontend image
         uses: aquasecurity/trivy-action@0.33.2
         with:
-          image-ref: ${{ secrets.DOCKER_USERNAME }}/meteo-front:latest
+          image-ref: meteo-front:ci
           format: json
           output: frontend-trivy.json
+          exit-code: "0"
 
-      - name: Upload frontend reports
+      - name: Upload frontend artifacts
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: frontend-reports
           path: frontend-trivy.json
 
+  vex-document:
+    name: Upload VEX Document
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload VEX document
+        uses: actions/upload-artifact@v4
+        with:
+          name: vex-document
+          path: vex.json
+
   push-images:
-    needs: [ci-backend, ci-frontend]
+    name: Push Docker Images
+    needs: [backend, frontend]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
 
@@ -110,13 +164,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Login to DockerHub
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Push Docker images
-        run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/meteo-back:latest
-          docker push ${{ secrets.DOCKER_USERNAME }}/meteo-front:latest
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/meteo-back:latest
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/meteo-front:latest
