@@ -75,13 +75,11 @@ jobs:
       - name: Build backend Docker image
         run: docker build -t meteo-back:ci ./backend
 
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
       - name: Trivy scan backend image
-        uses: aquasecurity/trivy-action@0.33.2
-        with:
-          image-ref: meteo-back:ci
-          format: json
-          output: backend-trivy.json
-          exit-code: "0"
+        run: trivy image --format json --output backend-trivy.json --exit-code 0 meteo-back:ci
 
       - name: Upload backend artifacts
         uses: actions/upload-artifact@v4
@@ -123,13 +121,11 @@ jobs:
       - name: Build frontend Docker image
         run: docker build -t meteo-front:ci ./frontend
 
+      - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
       - name: Trivy scan frontend image
-        uses: aquasecurity/trivy-action@0.33.2
-        with:
-          image-ref: meteo-front:ci
-          format: json
-          output: frontend-trivy.json
-          exit-code: "0"
+        run: trivy image --format json --output frontend-trivy.json --exit-code 0 meteo-front:ci
 
       - name: Upload frontend artifacts
         uses: actions/upload-artifact@v4
