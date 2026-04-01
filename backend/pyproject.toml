@@ -39,6 +39,7 @@ notebooks = [
 [tool.ruff]
 target-version = "py311"
 line-length = 88
+exclude = ["notebooks/"]
 
 [tool.ruff.lint]
 select = [
@@ -51,7 +52,11 @@ select = [
     "UP",     # pyupgrade
     "DJ",     # flake8-django
 ]
-ignore = ["E501"]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "DJ001",  # null=True on string fields (intentional for nullable weather data)
+    "C420",   # dict comprehension vs fromkeys (readability preference)
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["config", "weather"]
