@@ -1,20 +1,24 @@
-FROM node:24-alpine AS build
+FROM bellsoft/hardened-nodejs:24-musl AS build
 
 WORKDIR /app
+RUN chown node:node /app
+USER node
 
-COPY package*.json .
+COPY --chown=node:node package*.json .
 
 RUN npm install
 
-COPY . .
+COPY --chown=node:node . .
 
 RUN npm run build
 
-FROM node:24-alpine AS prod
+FROM bellsoft/hardened-nodejs:24-musl AS prod
 
 WORKDIR /app
+RUN chown node:node /app
+USER node
 
-COPY --from=build /app/.output /app/.output
+COPY --from=build --chown=node:node /app/.output /app/.output
 
 ENV NODE_ENV=production
 

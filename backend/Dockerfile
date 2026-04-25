@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm
+FROM bellsoft/hardened-python:3.12-glibc
 
 WORKDIR /app
 
