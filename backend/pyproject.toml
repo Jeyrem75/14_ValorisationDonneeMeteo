@@ -56,7 +56,6 @@ select = [
 ignore = [
     "E501",   # line too long (handled by formatter)
     "DJ001",  # null=True on string fields (intentional for nullable weather data)
-    "C420",   # dict comprehension vs fromkeys (readability preference)
 ]
 
 [tool.ruff.lint.isort]
