@@ -85,7 +85,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database - TimescaleDB connection
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
+        "ENGINE": "django_prometheus.db.backends.postgresql",
         "NAME": env("DB_NAME", default="meteodb"),
         "USER": env("DB_USER", default="infoclimat"),
         "PASSWORD": env("DB_PASSWORD", default="infoclimat2026"),
